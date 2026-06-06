@@ -1,0 +1,121 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@400;500&display=swap');
+
+@theme {
+  --color-primary: #3525cd;
+  --color-primary-hover: #291bb8;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #4f46e5;
+  --color-on-primary-container: #dad7ff;
+  
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+  
+  --color-warning-container: #fef08a; /* Amber-like for processing */
+  --color-on-warning-container: #854d0e;
+  
+  --color-success-container: #d1fae5;
+  --color-on-success-container: #065f46;
+  
+  --color-surface: #f9f9ff;
+  --color-on-surface: #151c27;
+  --color-surface-variant: #dce2f3;
+  --color-on-surface-variant: #464555;
+  
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f0f3ff;
+  --color-surface-container: #e7eefe;
+  --color-surface-container-high: #e2e8f8;
+  
+  --color-outline: #777587;
+  --color-outline-variant: #c7c4d8;
+  --color-background: #f9f9ff;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-on-surface font-sans;
+  }
+}
+
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--color-surface-variant);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--color-outline-variant);
+  }
+  
+  .math-block {
+    @apply font-mono bg-surface-container-high border-l-4 border-primary p-4 my-4 rounded-r-lg text-sm text-on-surface;
+  }
+  
+  .streaming-text::after {
+    content: '|';
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink {
+    from, to { color: transparent }
+    50% { color: var(--color-primary) }
+  }
+
+  .content-markdown p {
+    margin-bottom: 0.5rem;
+  }
+  .content-markdown strong {
+    font-weight: 600;
+  }
+  .content-markdown table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 1.5rem 0;
+    font-size: 0.875rem;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    border: 1px solid var(--color-outline-variant);
+  }
+  .content-markdown th, .content-markdown td {
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--color-outline-variant);
+    text-align: left;
+  }
+  .content-markdown th:not(:last-child), .content-markdown td:not(:last-child) {
+    border-right: 1px solid var(--color-outline-variant);
+  }
+  .content-markdown tr:last-child td {
+    border-bottom: none;
+  }
+  .content-markdown th {
+    background-color: var(--color-surface-container);
+    font-weight: 600;
+    color: var(--color-on-surface);
+  }
+  .content-markdown tr:nth-child(even) {
+    background-color: var(--color-surface-container-lowest);
+  }
+  .content-markdown tr:nth-child(odd) td {
+    background-color: var(--color-surface-container-low);
+  }
+  .streaming-text::after {
+    content: '▋';
+    animation: blink 1s step-end infinite;
+    color: var(--color-primary);
+    margin-left: 0.25rem;
+  }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}

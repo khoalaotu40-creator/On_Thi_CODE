@@ -1,4 +1,5 @@
-import { FileText, Sparkles, Tag, Plus, Trash2, Command, Bot, Loader2, History, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { FileText, Sparkles, Tag, Plus, Trash2, Command, Bot, Loader2, History, ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 import { Question } from '../types';
 import Markdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -10,9 +11,28 @@ interface MainContentProps {
   question: Question | undefined;
   onGenerateSolution?: (id: string) => void;
   onToggleSolutionActionHistory?: (id: string, isOpen: boolean) => void;
+  onUpdateQuestionContent?: (id: string, content: string) => void;
 }
 
-export function MainContent({ question, onGenerateSolution, onToggleSolutionActionHistory }: MainContentProps) {
+export function MainContent({ question, onGenerateSolution, onToggleSolutionActionHistory, onUpdateQuestionContent }: MainContentProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState('');
+
+  // Update editContent when question changes
+  useEffect(() => {
+    if (question) {
+      setEditContent(question.content);
+      setIsEditing(false); // Reset edit state when switching questions
+    }
+  }, [question?.id, question?.content]);
+
+  const handleSaveContent = () => {
+    if (question && onUpdateQuestionContent) {
+      onUpdateQuestionContent(question.id, editContent);
+    }
+    setIsEditing(false);
+  };
+
   if (!question) {
     return (
       <main className="flex-1 flex flex-col bg-background h-full overflow-hidden items-center justify-center text-on-surface-variant">
@@ -61,27 +81,63 @@ export function MainContent({ question, onGenerateSolution, onToggleSolutionActi
         
         {/* Section 1: Question Content */}
         <section className="space-y-4">
-          <div className="flex items-center gap-2 text-primary">
-            <FileText size={20} />
-            <h3 className="text-sm font-semibold uppercase tracking-widest">Nội dung câu hỏi</h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-primary">
+              <FileText size={20} />
+              <h3 className="text-sm font-semibold uppercase tracking-widest">Nội dung câu hỏi</h3>
+            </div>
+            {!isEditing ? (
+              <button 
+                onClick={() => setIsEditing(true)} 
+                className="text-on-surface-variant hover:text-primary transition-colors hover:bg-surface-container p-1.5 rounded-lg flex items-center gap-1"
+                title="Chỉnh sửa nội dung Markdown"
+              >
+                <Pencil size={15} />
+                <span className="text-xs font-semibold">Chỉnh sửa</span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => { setIsEditing(false); setEditContent(question.content); }} 
+                  className="text-on-surface-variant hover:text-error transition-colors px-3 py-1.5 text-xs font-semibold rounded hover:bg-error-container/20"
+                >
+                  Hủy
+                </button>
+                <button 
+                  onClick={handleSaveContent} 
+                  className="text-on-primary bg-primary hover:bg-primary-hover transition-colors px-4 py-1.5 text-xs font-semibold rounded-lg shadow-sm"
+                >
+                  Lưu thay đổi
+                </button>
+              </div>
+            )}
           </div>
           
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
-            <div className="prose prose-indigo max-w-none">
-              <div className="text-base text-on-surface leading-relaxed font-medium content-markdown">
-                <Markdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
-                  {question.content}
-                </Markdown>
-              </div>
-              
-              {question.mathContent && (
-                <div className="math-block">
+          <div className={`bg-surface-container-lowest border ${isEditing ? 'border-primary' : 'border-outline-variant'} rounded-xl p-6 shadow-sm overflow-hidden flex flex-col transition-colors`}>
+            {isEditing ? (
+              <textarea 
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                className="w-full min-h-[250px] h-full resize-y bg-transparent border-none focus:ring-0 text-on-surface font-mono text-sm leading-relaxed outline-none p-0 custom-scrollbar"
+                placeholder="Nhập nội dung Markdown ở đây..."
+              />
+            ) : (
+              <div className="prose prose-indigo max-w-none">
+                <div className="text-base text-on-surface leading-relaxed font-medium content-markdown">
                   <Markdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
-                    {question.mathContent}
+                    {question.content}
                   </Markdown>
                 </div>
-              )}
-            </div>
+                
+                {question.mathContent && (
+                  <div className="math-block mt-4 pt-4 border-t border-outline-variant/30">
+                    <Markdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
+                      {question.mathContent}
+                    </Markdown>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </section>
 

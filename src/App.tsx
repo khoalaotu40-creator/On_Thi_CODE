@@ -8,23 +8,40 @@ import { TopNav } from './components/TopNav';
 import { Sidebar } from './components/Sidebar';
 import { MainContent } from './components/MainContent';
 import { BatchOperations } from './components/BatchOperations';
+import { Auth } from './components/Auth';
 import { mockQuestions } from './data';
 import { parseMarkdownToQuestions } from './utils/textSplitter';
 import { Question } from './types';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'editor' | 'batch'>('batch');
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [activeQuestionId, setActiveQuestionId] = useState<string>('');
+  const [currentUser, setCurrentUser] = useState<string | null>(localStorage.getItem('currentUser'));
+  const [activeTab, setActiveTab] = useState<'editor' | 'batch'>('editor');
+  const [questions, setQuestions] = useState<Question[]>(mockQuestions);
+  const [activeQuestionId, setActiveQuestionId] = useState<string>(mockQuestions[0]?.id || '');
   
   const activeQuestion = questions.find(q => q.id === activeQuestionId);
+
+  const handleLogin = (username: string) => {
+    localStorage.setItem('currentUser', username);
+    setCurrentUser(username);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('currentUser');
+    setCurrentUser(null);
+  };
+
+  if (!currentUser) {
+    return <Auth onLogin={handleLogin} />;
+  }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const text = await file.text();
-    const parsed = parseMarkdownToQuestions(text);
+    const documentName = file.name;
+    const parsed = parseMarkdownToQuestions(text, documentName);
     
     const newQuestions: Question[] = parsed.map((p, i) => ({
       ...p,
@@ -39,8 +56,8 @@ export default function App() {
     e.target.value = '';
   };
   
-  const handleMarkdownSubmit = (text: string) => {
-    const parsed = parseMarkdownToQuestions(text);
+  const handleMarkdownSubmit = (text: string, documentName: string = 'Đề Import Từ Text') => {
+    const parsed = parseMarkdownToQuestions(text, documentName);
     
     const newQuestions: Question[] = parsed.map((p, i) => ({
       ...p,
@@ -209,7 +226,12 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
-      <TopNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <TopNav 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab} 
+        currentUser={currentUser}
+        onLogout={handleLogout}
+      />
       <div className="flex flex-1 overflow-hidden max-w-[1280px] w-full mx-auto border-x border-outline-variant shadow-sm">
         {activeTab === 'editor' ? (
           <>
@@ -218,12 +240,22 @@ export default function App() {
               activeId={activeQuestionId} 
               onSelect={setActiveQuestionId} 
               onClearAll={() => { setQuestions([]); setActiveQuestionId(''); }}
+              onUpdateDocumentName={(oldName, newName) => {
+                setQuestions(prev => prev.map(q => 
+                  (q.documentName === oldName || (!q.documentName && oldName === 'Khác')) 
+                    ? { ...q, documentName: newName } 
+                    : q
+                ));
+              }}
             />
             <MainContent 
               question={activeQuestion} 
               onGenerateSolution={handleGenerateSolution} 
               onToggleSolutionActionHistory={(id, isOpen) => {
                 setQuestions(prev => prev.map(q => q.id === id ? { ...q, isSolutionActionHistoryOpen: isOpen } : q));
+              }}
+              onUpdateQuestionContent={(id, content) => {
+                setQuestions(prev => prev.map(q => q.id === id ? { ...q, content } : q));
               }}
             />
           </>

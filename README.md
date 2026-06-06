@@ -8,9 +8,14 @@ Hệ thống quản lý, phân tích và giải bài tập tự động từ fil
 
 1. **Trích xuất văn bản thông minh (Text Extraction):**
    - Đưa văn bản thô vào, tự động nhận diện và trích xuất thành danh sách các câu hỏi độc lập được định dạng chuẩn bằng Markdown và LaTeX.
-   - Giao tiếp với AI qua SSE streaming, hiện chữ ngay lặp tức.
+   - Trực tiếp chỉnh sửa tên Đề bài (Document) và nội dung Markdown của từng câu hỏi ngay trên giao diện.
+   - Giao tiếp với AI qua SSE streaming, hiện chữ ngay lập tức.
 
-2. **Giải bài tập từng bước (Step-by-step Solution):**
+2. **Xác thực người dùng (Authentication & Phân quyền nội tại):**
+   - Tích hợp hệ thống Đăng nhập / Đăng ký giả lập (Mock Auth) sử dụng JSON và `localStorage`, cho phép thử nghiệm nhanh mà không cần cài đặt Database CSDL gốc.
+   - Giao diện người dùng có menu Profile, Avatar đóng mở, Hiển thị thông tin người dùng, Cài đặt và Đăng xuất rõ ràng.
+
+3. **Giải bài tập từng bước (Step-by-step Solution):**
    - Phân tích và sinh lời giải chi tiết cho từng câu hỏi riêng biệt.
    - Cung cấp đáp án bằng Markdown & LaTeX với UI hiển thị trực quan (Split-view).
 

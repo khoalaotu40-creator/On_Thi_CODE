@@ -13,6 +13,7 @@ export interface Question {
   confidence?: number;
   lastModified?: string;
   solutionStepByStep?: string;
+  documentName?: string;
   isGeneratingSolution?: boolean;
   solutionActionHistory?: string;
   isSolutionActionHistoryOpen?: boolean;

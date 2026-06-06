@@ -1,6 +1,6 @@
 import { Question } from '../types';
 
-export function parseMarkdownToQuestions(markdown: string): Omit<Question, 'id'>[] {
+export function parseMarkdownToQuestions(markdown: string, documentName?: string): Omit<Question, 'id'>[] {
   // Regex to split by common question markers: "Câu 1", "Bài 1", "Question 1", etc.
   // Handles optional heading marks before it and does not strictly require a colon/dot afterwards.
   const questionRegex = /(?=(?:^|\n)\s*(?:#+\s*)?(?:Câu|Bài|Question)\s*\d+)/i;
@@ -11,6 +11,7 @@ export function parseMarkdownToQuestions(markdown: string): Omit<Question, 'id'>
        sequence: '#001',
        title: 'Untitled Question',
        content: markdown,
+       documentName: documentName || 'Khác',
        tags: ['Imported'],
        status: 'pending',
        lastModified: 'Just now'
@@ -47,6 +48,7 @@ export function parseMarkdownToQuestions(markdown: string): Omit<Question, 'id'>
       title: displayTitle,
       content: content,
       mathContent: mathContent,
+      documentName: documentName || 'Khác',
       tags: ['Imported'],
       status: 'pending', 
       lastModified: 'Just now'

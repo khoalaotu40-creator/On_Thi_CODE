@@ -168,6 +168,77 @@ Lưu lịch sử các lần "Regenerate" hoặc log kết quả AI tránh ghi đ
 - `responsePayload`: Chuỗi trả về của AI.
 - `createdAt`: Timestamp sinh ra câu trả lời.
 
+### Cấu trúc Mock Local Storage (Lưu trữ tạm thời ở bản hiện tại)
+Do đang chạy Mock Auth bằng `localStorage`, hệ thống sử dụng một mảng JSON có dạng cơ bản:
+```json
+[
+  {
+    "username": "demo",
+    "password": "demo_password"
+  }
+]
+```
+
+---
+
+## 👤 4. Cấu trúc Use Case (Usecase Structure)
+
+Hệ thống cung cấp các luồng hành vi (Use Case) chính cho hai nhóm đối tượng: **Người dùng cuối (Teacher/Student)** và **Hệ thống (System/AI)**.
+
+### Tác nhân (Actors)
+1. **Người dùng (User/Admin):** Upload đề, kiểm duyệt đáp án, quản lý thư viện câu hỏi.
+2. **Hệ thống AI (Gemini):** Nhận prompt, sinh nội dung đáp án (Streaming), phân tích cấu trúc lỗi.
+3. **Hệ thống Core (Backend):** Lưu trữ, điều tiết Request Queue, bắt lỗi Rate Limit.
+
+### Danh sách Use Cases chính
+
+#### Nhóm 1: Quản lý Phiên & Phân quyền (Auth)
+* **UC1.1 - Đăng nhập/Đăng ký:** Đăng nhập thông qua Mock Auth (`localStorage`).
+* **UC1.2 - Xem/Chỉnh sửa Profile:** Mở menu Profile, xem tên tài khoản, đăng xuất.
+
+#### Nhóm 2: Quản lý & Xử lý Tài liệu (Document)
+* **UC2.1 - Tải lên tài liệu:** Kéo thả/chọn file `.md` chứa văn bản thô.
+* **UC2.2 - Trích xuất tập hợp câu hỏi (Batch Parsing):** Tự động bóc tách file thành các câu hỏi theo format.
+* **UC2.3 - Đổi tên tệp tài liệu:** Chỉnh sửa tên tập hợp câu hỏi trực tiếp trên Sidebar.
+
+#### Nhóm 3: Tương tác & Trình chỉnh sửa Câu hỏi (Question Editor)
+* **UC3.1 - Xem chi tiết câu hỏi:** Click vào câu hỏi bên Sidebar để hiển thị View Markdown.
+* **UC3.2 - Chỉnh sửa nội dung Markdown:** Nhấn nút Sửa tài liệu, nhập liệu văn bản với preview trực tiếp.
+* **UC3.3 - Xóa câu hỏi:** Loại bỏ câu khỏi khỏi danh sách hiện tại.
+
+#### Nhóm 4: Tương tác Trí tuệ Nhân tạo (AI Processing)
+* **UC4.1 - Sinh lời giải đơn lẻ (Generate Solution):** Call Gemini API lấy đáp án và Render KaTeX Streaming.
+* **UC4.2 - Xử lý bài tập hàng loạt (Batch Processing):** Gọi API song song/tuần tự cho nhiều câu hỏi.
+* **UC4.3 - Xem lịch sử suy luận (Action History):** Xem log các thao tác/thời gian trễ của AI.
+* **UC4.4 - Xử lý Hạn mức (Handle Rate Limit):** Khi quá tải, hệ thống tự động khóa tính năng sinh và tính toán countdown cho người dùng.
+
+```mermaid
+usecaseDiagram
+    actor User
+    actor "Gemini API" as AI
+
+    package "QuizAI Pro System" {
+        usecase "Đăng nhập/Đăng ký" as UC1
+        usecase "Upload File .md" as UC2
+        usecase "Bóc tách câu hỏi" as UC3
+        usecase "Chỉnh sửa tên đề / nội dung" as UC4
+        usecase "Yêu cầu giải bài (Đơn/Hàng loạt)" as UC5
+        usecase "Sinh đáp án thời gian thực (SSE)" as UC6
+        usecase "Xử lý Lỗi/Rate Limit" as UC7
+    }
+
+    User --> UC1
+    User --> UC2
+    User --> UC4
+    User --> UC5
+
+    UC2 ..> UC3 : <<include>>
+    UC5 ..> UC6 : <<include>>
+    
+    AI --> UC6
+    AI --> UC7
+```
+
 ---
 
 ### Mối quan hệ tổng quát:

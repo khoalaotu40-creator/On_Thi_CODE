@@ -80,6 +80,11 @@ export default function App() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let fullText = '';
+      let isHistoryClosed = false;
+
+      // Ensure init open
+      setQuestions(prev => prev.map(q => q.id === questionId ? { ...q, isSolutionActionHistoryOpen: true } : q));
 
       while (true) {
         const { value, done } = await reader.read();
@@ -95,7 +100,16 @@ export default function App() {
           if (chunk.startsWith('data: ')) {
             const dataStr = chunk.slice(6);
             if (dataStr === '[DONE]') {
-              setQuestions(prev => prev.map(question => question.id === questionId ? { ...question, isGeneratingSolution: false } : question));
+              setQuestions(prev => prev.map(question => {
+                if (question.id === questionId) {
+                  return {
+                    ...question,
+                    isGeneratingSolution: false,
+                    isSolutionActionHistoryOpen: isHistoryClosed ? question.isSolutionActionHistoryOpen : false
+                  };
+                }
+                return question;
+              }));
               break;
             }
             try {
@@ -104,7 +118,48 @@ export default function App() {
                  throw new Error(data.error);
               }
               if (data.text) {
-                setQuestions(prev => prev.map(question => question.id === questionId ? { ...question, solutionStepByStep: (question.solutionStepByStep || '') + data.text } : question));
+                fullText += data.text;
+                setQuestions(prev => prev.map(question => {
+                  if (question.id !== questionId) return question;
+                  
+                  let newActionHistory = question.solutionActionHistory || '';
+                  let newExtracted = question.solutionStepByStep || '';
+                  let openState = question.isSolutionActionHistoryOpen ?? true;
+                  
+                  if (!isHistoryClosed) {
+                    const closeIdx = fullText.indexOf('</action_history>');
+                    if (closeIdx !== -1) {
+                      isHistoryClosed = true;
+                      openState = false;
+                      const startIdx = fullText.indexOf('<action_history>');
+                      if (startIdx !== -1) {
+                        newActionHistory = fullText.substring(startIdx + 16, closeIdx).trim();
+                        newExtracted = fullText.substring(closeIdx + 17).trimStart();
+                      } else {
+                        newExtracted = fullText.substring(closeIdx + 17).trimStart();
+                      }
+                    } else {
+                      const startIdx = fullText.indexOf('<action_history>');
+                      if (startIdx !== -1) {
+                        newActionHistory = fullText.substring(startIdx + 16);
+                      }
+                    }
+                  } else {
+                    const closeIdx = fullText.indexOf('</action_history>');
+                    if (closeIdx !== -1) {
+                      newExtracted = fullText.substring(closeIdx + 17).trimStart();
+                    } else {
+                      newExtracted = fullText;
+                    }
+                  }
+                  
+                  return {
+                    ...question,
+                    solutionActionHistory: newActionHistory,
+                    solutionStepByStep: newExtracted,
+                    isSolutionActionHistoryOpen: openState
+                  };
+                }));
               }
             } catch (e) {
                // ignore
@@ -134,6 +189,9 @@ export default function App() {
             <MainContent 
               question={activeQuestion} 
               onGenerateSolution={handleGenerateSolution} 
+              onToggleSolutionActionHistory={(id, isOpen) => {
+                setQuestions(prev => prev.map(q => q.id === id ? { ...q, isSolutionActionHistoryOpen: isOpen } : q));
+              }}
             />
           </>
         ) : (

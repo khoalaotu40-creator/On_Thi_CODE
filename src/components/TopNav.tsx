@@ -25,27 +25,6 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
           </button>
         </div>
       </div>
-      <div className="flex items-center gap-4">
-        
-        <div className="flex items-center gap-2 ml-2 mr-2">
-          <button className="p-2 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-full">
-            <Bell size={20} />
-          </button>
-          <button className="p-2 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-full">
-            <HelpCircle size={20} />
-          </button>
-        </div>
-        <button className="bg-primary text-on-primary px-6 py-2 rounded-lg text-sm font-medium hover:bg-primary-hover active:scale-95 transition-all">
-          Xuất tất cả
-        </button>
-        <div className="w-8 h-8 rounded-full bg-surface-container-high overflow-hidden border border-outline-variant">
-          <img 
-            alt="Administrator" 
-            className="w-full h-full object-cover" 
-            src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" 
-          />
-        </div>
-      </div>
     </header>
   );
 }

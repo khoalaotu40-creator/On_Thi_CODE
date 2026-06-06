@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Play, CheckCircle, Clock, Sparkles, Loader2, ArrowRight, Trash2, Copy } from 'lucide-react';
+import { Upload, Play, CheckCircle, Clock, Sparkles, Loader2, ArrowRight, Trash2, Copy, History, ChevronDown, ChevronUp } from 'lucide-react';
 import { Question } from '../types';
 import Markdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -17,14 +17,11 @@ export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMa
   const [markdownInput, setMarkdownInput] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractedText, setExtractedText] = useState('');
+  const [actionHistory, setActionHistory] = useState('');
+  const [isActionHistoryOpen, setIsActionHistoryOpen] = useState(false);
   const [extractionComplete, setExtractionComplete] = useState(false);
   
   const endOfStreamRef = useRef<HTMLDivElement>(null);
-
-  const pendingCount = questions.filter(q => q.status === 'pending').length;
-  const processingCount = questions.filter(q => q.status === 'processing').length;
-  const completedCount = questions.filter(q => q.status === 'completed').length;
-  const reviewCount = questions.filter(q => q.status === 'review').length;
 
   useEffect(() => {
     if (isExtracting && endOfStreamRef.current) {
@@ -37,6 +34,8 @@ export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMa
     setIsExtracting(true);
     setExtractionComplete(false);
     setExtractedText('');
+    setActionHistory('');
+    setIsActionHistoryOpen(true);
 
     try {
       const response = await fetch('/api/analyze', {
@@ -57,6 +56,8 @@ export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMa
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let fullText = '';
+      let isHistoryClosed = false;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -74,6 +75,9 @@ export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMa
             if (dataStr === '[DONE]') {
               setIsExtracting(false);
               setExtractionComplete(true);
+              if (!isHistoryClosed) {
+                setIsActionHistoryOpen(false);
+              }
               break;
             }
             try {
@@ -82,7 +86,35 @@ export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMa
                  throw new Error(data.error);
               }
               if (data.text) {
-                setExtractedText(prev => prev + data.text);
+                fullText += data.text;
+                
+                if (!isHistoryClosed) {
+                   const closeIdx = fullText.indexOf('</action_history>');
+                   if (closeIdx !== -1) {
+                      isHistoryClosed = true;
+                      setIsActionHistoryOpen(false);
+                      const startIdx = fullText.indexOf('<action_history>');
+                      if (startIdx !== -1) {
+                         setActionHistory(fullText.substring(startIdx + 16, closeIdx).trim());
+                         setExtractedText(fullText.substring(closeIdx + 17).trimStart());
+                      } else {
+                         setExtractedText(fullText.substring(closeIdx + 17).trimStart());
+                      }
+                   } else {
+                      const startIdx = fullText.indexOf('<action_history>');
+                      if (startIdx !== -1) {
+                         setActionHistory(fullText.substring(startIdx + 16));
+                      }
+                   }
+                } else {
+                   const closeIdx = fullText.indexOf('</action_history>');
+                   if (closeIdx !== -1) {
+                     setExtractedText(fullText.substring(closeIdx + 17).trimStart());
+                   } else {
+                     // Fallback if tags matched weirdly
+                     setExtractedText(fullText);
+                   }
+                }
               }
             } catch (e) {
                // Only ignore JSON parse error
@@ -105,56 +137,9 @@ export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMa
           <h1 className="text-lg font-semibold text-on-background tracking-tight">Xử lý hàng loạt</h1>
           <p className="text-sm text-on-surface-variant">Trích xuất câu hỏi từ văn bản và quản lý tiến trình.</p>
         </div>
-        <div className="flex gap-4">
-          <label className="flex items-center gap-2 bg-surface-container-lowest border border-outline-variant text-on-surface px-5 py-2.5 rounded-lg text-sm font-semibold hover:border-primary cursor-pointer transition-all active:scale-95 shadow-sm">
-            <Upload size={18} className="text-primary" />
-            <span>Tải lên file .md</span>
-            <input type="file" accept=".md" className="hidden" onChange={onUpload} />
-          </label>
-          <button 
-            onClick={onGenerateAll}
-            disabled={pendingCount === 0}
-            className="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg shadow-primary/20"
-          >
-            <Play size={18} className="fill-white/20" />
-            <span>Tạo AI tự động ({pendingCount})</span>
-          </button>
-        </div>
       </div>
       
       <div className="p-8 overflow-y-auto flex-1 custom-scrollbar">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-on-surface-variant mb-1">Chờ xử lý</p>
-              <p className="text-3xl font-bold text-on-surface">{pendingCount}</p>
-            </div>
-            <div className="w-12 h-12 rounded-full bg-warning-container/50 flex items-center justify-center text-warning">
-              <Clock size={24} className="text-on-warning-container" />
-            </div>
-          </div>
-          
-          <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-on-surface-variant mb-1">Cần review</p>
-              <p className="text-3xl font-bold text-on-surface">{reviewCount}</p>
-            </div>
-            <div className="w-12 h-12 rounded-full bg-error-container/50 flex items-center justify-center">
-              <span className="text-2xl font-bold text-on-error-container">!</span>
-            </div>
-          </div>
-          
-          <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-on-surface-variant mb-1">Hoàn thành</p>
-              <p className="text-3xl font-bold text-on-surface">{completedCount}</p>
-            </div>
-            <div className="w-12 h-12 rounded-full bg-success-container/50 flex items-center justify-center">
-              <CheckCircle size={24} className="text-on-success-container" />
-            </div>
-          </div>
-        </div>
-        
         {/* Input and AI Output Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[500px]">
           {/* Left: Input Textarea */}
@@ -231,7 +216,32 @@ export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMa
                 <Sparkles size={180} />
               </div>
               
-              {!isExtracting && !extractedText && (
+              {(actionHistory || (isExtracting && isActionHistoryOpen)) && (
+                <div className="border-b border-outline-variant bg-surface-container-lowest z-20">
+                  <button 
+                    onClick={() => setIsActionHistoryOpen(!isActionHistoryOpen)}
+                    className="w-full flex items-center justify-between p-3 text-sm font-medium text-on-surface-variant hover:bg-surface-container-low transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <History size={16} />
+                      <span>Tiến trình xử lý (Action History)</span>
+                    </div>
+                    {isActionHistoryOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
+                  {isActionHistoryOpen && actionHistory && (
+                    <div className="p-4 text-xs font-mono text-on-surface-variant bg-surface-container-lowest whitespace-pre-wrap border-t border-outline-variant/50 max-h-48 overflow-y-auto custom-scrollbar">
+                      {actionHistory}
+                    </div>
+                  )}
+                  {isActionHistoryOpen && isExtracting && !actionHistory && (
+                    <div className="p-4 text-xs font-mono text-on-surface-variant flex items-center gap-2 bg-surface-container-lowest border-t border-outline-variant/50">
+                      <Loader2 size={12} className="animate-spin" /> Đang khởi tạo...
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {!isExtracting && !extractedText && !actionHistory && (
                 <div className="h-full flex flex-col items-center justify-center text-on-surface-variant relative z-10 opacity-60 p-6">
                   <Sparkles size={48} className="mb-4 text-outline-variant" />
                   <p className="text-sm font-medium">AI sẽ phân tích và hiển thị kết quả tại đây.</p>

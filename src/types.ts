@@ -14,4 +14,6 @@ export interface Question {
   lastModified?: string;
   solutionStepByStep?: string;
   isGeneratingSolution?: boolean;
+  solutionActionHistory?: string;
+  isSolutionActionHistoryOpen?: boolean;
 }

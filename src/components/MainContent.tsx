@@ -1,4 +1,4 @@
-import { FileText, Sparkles, Tag, Plus, Trash2, Command, Bot, Loader2 } from 'lucide-react';
+import { FileText, Sparkles, Tag, Plus, Trash2, Command, Bot, Loader2, History, ChevronDown, ChevronUp } from 'lucide-react';
 import { Question } from '../types';
 import Markdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -9,9 +9,10 @@ import 'katex/dist/katex.min.css';
 interface MainContentProps {
   question: Question | undefined;
   onGenerateSolution?: (id: string) => void;
+  onToggleSolutionActionHistory?: (id: string, isOpen: boolean) => void;
 }
 
-export function MainContent({ question, onGenerateSolution }: MainContentProps) {
+export function MainContent({ question, onGenerateSolution, onToggleSolutionActionHistory }: MainContentProps) {
   if (!question) {
     return (
       <main className="flex-1 flex flex-col bg-background h-full overflow-hidden items-center justify-center text-on-surface-variant">
@@ -91,8 +92,8 @@ export function MainContent({ question, onGenerateSolution }: MainContentProps) 
             <h3 className="text-sm font-semibold uppercase tracking-widest">Lời giải chi tiết</h3>
           </div>
           
-          <div className={`bg-surface border-2 ${question.solutionStepByStep ? 'border-primary-container/60 p-6' : 'border-dashed border-outline-variant p-8 text-center'} rounded-xl flex flex-col items-center justify-center gap-4 relative overflow-hidden`}>
-            {(!question.solutionStepByStep && !question.isGeneratingSolution) && (
+          <div className={`bg-surface border-2 ${question.solutionStepByStep || question.solutionActionHistory ? 'border-primary-container/60' : 'border-dashed border-outline-variant p-8 text-center'} rounded-xl flex flex-col items-center justify-center gap-4 relative overflow-hidden w-full`}>
+            {(!question.solutionStepByStep && !question.solutionActionHistory && !question.isGeneratingSolution) && (
               <>
                 <div className="w-16 h-16 bg-primary-container rounded-full flex items-center justify-center text-primary mb-2 shadow-sm">
                   <Sparkles size={32} />
@@ -111,15 +112,40 @@ export function MainContent({ question, onGenerateSolution }: MainContentProps) 
               </>
             )}
 
-            {question.isGeneratingSolution && !question.solutionStepByStep && (
-               <div className="flex flex-col items-center justify-center py-8 gap-4 text-primary">
+            {(question.solutionActionHistory || (question.isGeneratingSolution && question.isSolutionActionHistoryOpen)) ? (
+              <div className="w-full border-b border-outline-variant bg-surface-container-lowest z-20">
+                <button 
+                  onClick={() => onToggleSolutionActionHistory && onToggleSolutionActionHistory(question.id, !question.isSolutionActionHistoryOpen)}
+                  className="w-full flex items-center justify-between p-3 text-sm font-medium text-on-surface-variant hover:bg-surface-container-low transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <History size={16} />
+                    <span>Tiến trình giải (Action History)</span>
+                  </div>
+                  {question.isSolutionActionHistoryOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                {question.isSolutionActionHistoryOpen && question.solutionActionHistory && (
+                  <div className="p-4 text-xs font-mono text-on-surface-variant bg-surface-container-lowest whitespace-pre-wrap border-t border-outline-variant/50 max-h-48 overflow-y-auto custom-scrollbar text-left w-full">
+                    {question.solutionActionHistory}
+                  </div>
+                )}
+                {question.isSolutionActionHistoryOpen && question.isGeneratingSolution && !question.solutionActionHistory && (
+                  <div className="p-4 text-xs font-mono text-on-surface-variant flex items-center gap-2 bg-surface-container-lowest border-t border-outline-variant/50 text-left w-full">
+                    <Loader2 size={12} className="animate-spin" /> Đang khởi tạo suy luận...
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {question.isGeneratingSolution && !question.solutionStepByStep && !question.solutionActionHistory && !question.isSolutionActionHistoryOpen && (
+               <div className="flex flex-col items-center justify-center p-8 gap-4 text-primary w-full">
                  <Loader2 size={32} className="animate-spin" />
                  <span className="font-medium">AI đang phân tích và giải từng bước...</span>
                </div>
             )}
             
             {(question.solutionStepByStep || (question.isGeneratingSolution && question.solutionStepByStep)) ? (
-              <div className="w-full text-left">
+              <div className="w-full text-left p-6">
                 <div className="prose prose-indigo max-w-none text-base text-on-surface leading-relaxed content-markdown">
                   <Markdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
                     {question.solutionStepByStep || ''}
@@ -128,7 +154,7 @@ export function MainContent({ question, onGenerateSolution }: MainContentProps) 
                 {question.isGeneratingSolution && (
                   <div className="flex items-center gap-2 text-primary mt-4 text-sm font-medium">
                     <Loader2 size={16} className="animate-spin" />
-                    Đang viết tiếp...
+                    Đang viết tiếp lời giải...
                   </div>
                 )}
               </div>

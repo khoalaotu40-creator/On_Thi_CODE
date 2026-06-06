@@ -1,27 +1,53 @@
 # QuizAI Pro - Markdown & AI Processing Workspace
 
-Hệ thống quản lý, phân tích và giải bài tập tự động từ file Markdown bằng AI (Gemini, ChatGPT, Claude) với cơ chế xử lý hàng loạt và kiểm duyệt giao diện chia đôi (split-view) mạnh mẽ.
+Hệ thống quản lý, phân tích và giải bài tập tự động từ file văn bản thô bằng trí tuệ nhân tạo (Gemini API) với cơ chế xử lý hàng loạt, nhận diện lỗi tốc độ giới hạn (Rate limit) và luồng xử lý thời gian thực qua giao thức Server-Sent Events (SSE).
+
+---
+
+## Tính năng nổi bật hiện tại
+
+1. **Trích xuất văn bản thông minh (Text Extraction):**
+   - Đưa văn bản thô vào, tự động nhận diện và trích xuất thành danh sách các câu hỏi độc lập được định dạng chuẩn bằng Markdown và LaTeX.
+   - Giao tiếp với AI qua SSE streaming, hiện chữ ngay lặp tức.
+
+2. **Giải bài tập từng bước (Step-by-step Solution):**
+   - Phân tích và sinh lời giải chi tiết cho từng câu hỏi riêng biệt.
+   - Cung cấp đáp án bằng Markdown & LaTeX với UI hiển thị trực quan (Split-view).
+
+3. **Ghi nhận lịch sử tác vụ theo thời gian thực (Action History / Log Streaming):**
+   - Giao diện cung cấp công cụ theo dõi luồng suy luận của AI (Action History).
+   - Đo đạc thời gian thực thi cho từng tác vụ và phản hồi trực tiếp tới người dùng.
+
+4. **Xử lý Hạn mức & Lỗi hệ thống mạnh mẽ (Rate Limiting & Error Handling):**
+   - Tự động bắt lỗi **HTTP 429 (Too Many Requests)**. Tính toán độ trễ (delay) dự kiến nếu AI bị quá tải và thông báo trực quan tới người dùng.
+   - Tự động nhận diện lỗi **Quota Exceeded (hết hạn mức sử dụng miễn phí mỗi ngày)**: Nhận diện chính xác gói Free tier của Gemini 2.5 Flash (20 requests/day).
+   - Hiển thị thông báo hướng dẫn người dùng đợi hệ thống reset hạn mức (vào lúc 14:00 theo giờ Việt Nam đối với người dùng khu vực tương ứng).
 
 ---
 
 ## 📂 1. Cấu trúc thư mục (Folder Structure)
 
-Cấu trúc mã nguồn được thiết kế theo dạng Module/Component của React (Vite):
+Cấu trúc mã nguồn được thiết kế theo dạng Module/Component của React (Vite) và tích hợp backend Express:
 
 ```text
 /
-├── public/                 # Các tài nguyên tĩnh (images, icons)
-├── src/                    # Mã nguồn chính của ứng dụng
+├── assets/                 # Các tài nguyên tĩnh/tham khảo
+├── src/                    # Mã nguồn chính của giao diện ứng dụng (Frontend)
 │   ├── components/         # Các UI component có thể tái sử dụng
-│   │   ├── MainContent.tsx # Vùng hiển thị chi tiết câu hỏi & Kết quả AI
+│   │   ├── BatchOperations.tsx # Component trích xuất và xử lý dữ liệu hàng loạt
+│   │   ├── MainContent.tsx # Vùng hiển thị chi tiết câu hỏi & Kết quả sinh từ AI
 │   │   ├── Sidebar.tsx     # Danh sách câu hỏi, biểu diễn trạng thái
 │   │   └── TopNav.tsx      # Thanh điều hướng trên cùng, công cụ export
-│   ├── App.tsx             # Component gốc, khởi tạo layout chính
-│   ├── data.ts             # Dữ liệu giả lập (Mock data) phục vụ UI
-│   ├── index.css           # File CSS toàn cục (Tailwind CSS cấu hình biến)
+│   ├── utils/              # Các hàm tiện ích logic
+│   │   └── textSplitter.ts # Logic xử lý bóc tách văn bản thô
+│   ├── App.tsx             # Component gốc, khởi tạo layout chính và quản lý State
+│   ├── data.ts             # Dữ liệu mẫu (Mock data)
+│   ├── index.css           # CSS toàn cục (Tailwind CSS)
 │   ├── main.tsx            # Điểm neo React vào file HTML
 │   └── types.ts            # Định nghĩa các TypeScript Interface & Type
+├── server.ts               # Backend Server (Node.js/Express) gọi Gemini API & SSE Stream
 ├── index.html              # HTML template chính
+├── metadata.json           # Tuỳ chỉnh siêu dữ liệu app
 ├── tsconfig.json           # Cấu hình TypeScript
 ├── vite.config.ts          # Cấu hình Vite bundler
 └── package.json            # Quản lý thư viện và scripts
@@ -62,6 +88,49 @@ Cấu trúc mã nguồn được thiết kế theo dạng Module/Component của
 ## 🗄️ 3. Cấu trúc Database (Data schema & Relationships)
 
 Hệ thống được đề xuất sử dụng cơ sở dữ liệu Document/NoSQL (như MongoDB) để linh hoạt lưu trữ Markdown, nhưng cấu trúc chuẩn hóa cho phép tra cứu (Tham chiếu khóa chính/Khóa phụ) như sau:
+
+```mermaid
+erDiagram
+    USER ||--o{ DOCUMENT : "uploads"
+    DOCUMENT ||--|{ QUESTION : "contains"
+    QUESTION ||--o{ REGENERATION_LOG : "has"
+    QUESTION }|--|{ TAG : "has"
+
+    DOCUMENT {
+        string _id PK "UUID/ObjectID"
+        string userId FK "Trỏ tới người dùng"
+        string fileName "Tên file gốc"
+        datetime uploadedAt "Thời gian tải lên"
+        string status "pending, processing, completed"
+    }
+
+    QUESTION {
+        string _id PK "UUID/ObjectID"
+        string documentId FK "Thuộc lô tài liệu nào"
+        string sequence "Thứ tự/Mã hiển thị"
+        string title "Tiêu đề tóm tắt"
+        string content "Nội dung gốc"
+        string mathContent "Đoạn công thức (nếu có)"
+        string status "review, processing, completed"
+        decimal confidence "Độ tự tin của AI"
+        string aiAnalysis "Mô tả phân tích (AI)"
+        array aiSteps "Các bước giải chi tiết"
+        datetime lastModified "Ngày chỉnh sửa cuối"
+    }
+
+    REGENERATION_LOG {
+        string _id PK "Row ID"
+        string questionId FK "Thuộc câu hỏi nào"
+        string promptUsed "Đoạn prompt đã dùng"
+        text responsePayload "Nội dung AI trả về"
+        datetime createdAt "Thời gian sinh"
+    }
+    
+    TAG {
+        string _id PK "Tag ID"
+        string name "Tên thẻ"
+    }
+```
 
 ### Tệp tài liệu (Document / Batch)
 Đại diện cho 1 lô bài tập tải lên (1 file `.md` gốc).

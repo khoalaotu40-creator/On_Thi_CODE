@@ -92,8 +92,8 @@ export function MainContent({ question, onGenerateSolution, onToggleSolutionActi
             <h3 className="text-sm font-semibold uppercase tracking-widest">Lời giải chi tiết</h3>
           </div>
           
-          <div className={`bg-surface border-2 ${question.solutionStepByStep || question.solutionActionHistory ? 'border-primary-container/60' : 'border-dashed border-outline-variant p-8 text-center'} rounded-xl flex flex-col items-center justify-center gap-4 relative overflow-hidden w-full`}>
-            {(!question.solutionStepByStep && !question.solutionActionHistory && !question.isGeneratingSolution) && (
+          <div className={`bg-surface border-2 ${question.solutionStepByStep || question.solutionActionHistory || (question.rateLimitLogs && question.rateLimitLogs.length > 0) ? 'border-primary-container/60' : 'border-dashed border-outline-variant p-8 text-center'} rounded-xl flex flex-col items-center justify-center gap-4 relative overflow-hidden w-full`}>
+            {(!question.solutionStepByStep && !question.solutionActionHistory && !question.isGeneratingSolution && (!question.rateLimitLogs || question.rateLimitLogs.length === 0)) && (
               <>
                 <div className="w-16 h-16 bg-primary-container rounded-full flex items-center justify-center text-primary mb-2 shadow-sm">
                   <Sparkles size={32} />
@@ -112,7 +112,7 @@ export function MainContent({ question, onGenerateSolution, onToggleSolutionActi
               </>
             )}
 
-            {(question.solutionActionHistory || (question.isGeneratingSolution && question.isSolutionActionHistoryOpen)) ? (
+            {(question.solutionActionHistory || (question.isGeneratingSolution && question.isSolutionActionHistoryOpen) || (question.rateLimitLogs && question.rateLimitLogs.length > 0)) ? (
               <div className="w-full border-b border-outline-variant bg-surface-container-lowest z-20">
                 <button 
                   onClick={() => onToggleSolutionActionHistory && onToggleSolutionActionHistory(question.id, !question.isSolutionActionHistoryOpen)}
@@ -121,23 +121,33 @@ export function MainContent({ question, onGenerateSolution, onToggleSolutionActi
                   <div className="flex items-center gap-2">
                     <History size={16} />
                     <span>Tiến trình giải (Action History)</span>
+                    {question.rateLimitLogs && question.rateLimitLogs.length > 0 && <span className="text-xs text-warning ml-2 font-bold">(Rate Limited)</span>}
+                    {question.solutionActionHistoryTimeMs && <span className="text-xs opacity-70">({(question.solutionActionHistoryTimeMs / 1000).toFixed(1)}s)</span>}
                   </div>
                   {question.isSolutionActionHistoryOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                 </button>
-                {question.isSolutionActionHistoryOpen && question.solutionActionHistory && (
-                  <div className="p-4 text-xs font-mono text-on-surface-variant bg-surface-container-lowest whitespace-pre-wrap border-t border-outline-variant/50 max-h-48 overflow-y-auto custom-scrollbar text-left w-full">
-                    {question.solutionActionHistory}
+                {question.isSolutionActionHistoryOpen && (question.solutionActionHistory || (question.rateLimitLogs && question.rateLimitLogs.length > 0)) && (
+                  <div className="p-4 text-xs font-mono text-on-surface-variant bg-surface-container-lowest whitespace-pre-wrap border-t border-outline-variant/50 max-h-48 overflow-y-auto custom-scrollbar text-left w-full flex flex-col gap-2">
+                    {question.rateLimitLogs && question.rateLimitLogs.map((log, i) => (
+                       <div key={i} className="text-warning font-semibold">{log}</div>
+                    ))}
+                    {question.solutionActionHistory && <div>{question.solutionActionHistory}</div>}
                   </div>
                 )}
-                {question.isSolutionActionHistoryOpen && question.isGeneratingSolution && !question.solutionActionHistory && (
+                {question.isSolutionActionHistoryOpen && question.isGeneratingSolution && !question.solutionActionHistory && (!question.rateLimitLogs || question.rateLimitLogs.length === 0) && (
                   <div className="p-4 text-xs font-mono text-on-surface-variant flex items-center gap-2 bg-surface-container-lowest border-t border-outline-variant/50 text-left w-full">
                     <Loader2 size={12} className="animate-spin" /> Đang khởi tạo suy luận...
+                  </div>
+                )}
+                {question.isSolutionActionHistoryOpen && question.isGeneratingSolution && !question.solutionActionHistory && question.rateLimitLogs && question.rateLimitLogs.length > 0 && (
+                  <div className="p-4 text-xs font-mono text-on-surface-variant flex items-center gap-2 bg-surface-container-lowest border-t border-outline-variant/50 text-left w-full">
+                    <Loader2 size={12} className="animate-spin text-warning" /> Đang đợi Gemini API sẵn sàng...
                   </div>
                 )}
               </div>
             ) : null}
 
-            {question.isGeneratingSolution && !question.solutionStepByStep && !question.solutionActionHistory && !question.isSolutionActionHistoryOpen && (
+            {question.isGeneratingSolution && !question.solutionStepByStep && !question.solutionActionHistory && (!question.rateLimitLogs || question.rateLimitLogs.length === 0) && !question.isSolutionActionHistoryOpen && (
                <div className="flex flex-col items-center justify-center p-8 gap-4 text-primary w-full">
                  <Loader2 size={32} className="animate-spin" />
                  <span className="font-medium">AI đang phân tích và giải từng bước...</span>

@@ -16,4 +16,6 @@ export interface Question {
   isGeneratingSolution?: boolean;
   solutionActionHistory?: string;
   isSolutionActionHistoryOpen?: boolean;
+  solutionActionHistoryTimeMs?: number;
+  rateLimitLogs?: string[];
 }

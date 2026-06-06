@@ -6,19 +6,38 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const executeWithRetry = async <T>(operation: () => Promise<T>, maxRetries = 5): Promise<T> => {
+const executeWithRetry = async <T>(operation: () => Promise<T>, onRetry?: (attempt: number, maxRetries: number, delayMs: number) => void, maxRetries = 5): Promise<T> => {
   let attempt = 0;
   while (attempt < maxRetries) {
     try {
       return await operation();
     } catch (error: any) {
-      const isRateLimit = error?.status === 429 || error?.message?.includes("429") || error?.message?.includes("RESOURCE_EXHAUSTED");
-      if (isRateLimit) {
+      const isDailyLimit = error?.message?.includes("GenerateRequestsPerDayPerProjectPerModel") || error?.message?.includes("per day");
+      const isRateLimit = error?.status === 429 || error?.message?.includes("429") || error?.message?.includes("RESOURCE_EXHAUSTED") || error?.status === "Too Many Requests";
+      
+      if (isDailyLimit) {
+         throw new Error("Bạn đã sử dụng hết hạn mức 20 yêu cầu/ngày của gói API miễn phí. Hạn mức sẽ được làm mới vào lúc 14:00 (giờ Việt Nam) hàng ngày. Vui lòng thử lại sau.");
+      } else if (isRateLimit) {
         attempt++;
         if (attempt >= maxRetries) throw error;
-        // Exponential backoff: 2s, 4s, 8s, 16s...
-        const delayMs = Math.pow(2, attempt) * 1000 + (Math.random() * 1000); // Add jitter
-        console.warn(`[Gemini API] Vượt quá hạn mức 429 (Lần thử ${attempt}/${maxRetries - 1}). Thử lại sau ${Math.round(delayMs)}ms...`);
+        
+        let delayMs = Math.pow(2, attempt) * 1000 + (Math.random() * 1000); // Default exponential backoff
+
+        // Try to parse "Please retry in X.Xs" or "retryDelay": "Xs"
+        try {
+          const match = error?.message?.match(/Please retry in ([\d\.]+)s/);
+          if (match && match[1]) {
+             delayMs = parseFloat(match[1]) * 1000 + 1000; // Add 1s buffer
+          } else {
+             const retryMatch = error?.message?.match(/"retryDelay":\s*"(\d+)s"/);
+             if (retryMatch && retryMatch[1]) {
+                delayMs = parseInt(retryMatch[1], 10) * 1000 + 1000;
+             }
+          }
+        } catch (e) {}
+
+        console.warn(`[Gemini API] Vượt quá hạn mức 429 (Lần thử ${attempt}/${maxRetries}). Thử lại sau ${Math.round(delayMs)}ms...`);
+        if (onRetry) onRetry(attempt, maxRetries, delayMs);
         await new Promise(resolve => setTimeout(resolve, delayMs));
       } else {
         throw error;
@@ -67,7 +86,9 @@ ${content}`,
         config: {
           systemInstruction: "Bạn là một hệ thống tự động hóa xử lý văn bản giáo dục. Nhiệm vụ của bạn là nhận văn bản thô, trích xuất và định dạng lại các câu hỏi/bài tập chuẩn xác theo định dạng Markdown, giữ nguyên cấu trúc toán học bằng LaTeX để render hiển thị chính xác trên web, thụt dòng rõ ràng và sử dụng thẻ Heading 2 (##) cho các tiêu đề 'Câu'."
         }
-      }));
+      }), (attempt, max, delayMs) => {
+        res.write(`data: ${JSON.stringify({ rateLimit: { attempt, maxRetries: max, delayMs } })}\n\n`);
+      });
 
       for await (const chunk of responseStream) {
         if (chunk.text) {
@@ -116,7 +137,9 @@ ${content}`,
         config: {
           systemInstruction: "Bạn là một trợ lý giáo viên xuất sắc. Nhiệm vụ của bạn là giải bài tập từng bước, giải thích cặn kẽ để sinh viên có thể hiểu rõ phương pháp giải. Định dạng trình bày đẹp bằng Markdown và LaTeX."
         }
-      }));
+      }), (attempt, max, delayMs) => {
+        res.write(`data: ${JSON.stringify({ rateLimit: { attempt, maxRetries: max, delayMs } })}\n\n`);
+      });
 
       for await (const chunk of responseStream) {
         if (chunk.text) {

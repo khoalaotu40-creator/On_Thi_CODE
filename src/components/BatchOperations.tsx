@@ -19,6 +19,8 @@ export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMa
   const [extractedText, setExtractedText] = useState('');
   const [actionHistory, setActionHistory] = useState('');
   const [isActionHistoryOpen, setIsActionHistoryOpen] = useState(false);
+  const [actionHistoryTimeMs, setActionHistoryTimeMs] = useState<number | null>(null);
+  const [rateLimitLogs, setRateLimitLogs] = useState<string[]>([]);
   const [extractionComplete, setExtractionComplete] = useState(false);
   
   const endOfStreamRef = useRef<HTMLDivElement>(null);
@@ -36,6 +38,10 @@ export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMa
     setExtractedText('');
     setActionHistory('');
     setIsActionHistoryOpen(true);
+    setActionHistoryTimeMs(null);
+    setRateLimitLogs([]);
+
+    const startTime = performance.now();
 
     try {
       const response = await fetch('/api/analyze', {
@@ -85,6 +91,11 @@ export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMa
               if (data.error) {
                  throw new Error(data.error);
               }
+              if (data.rateLimit) {
+                 const log = `[Rate Limit 429] Quá hạn mức. Đang đợi thử lại (Lần ${data.rateLimit.attempt}/${data.rateLimit.maxRetries}). Đợi thêm ${Math.round(data.rateLimit.delayMs / 1000)} giây...`;
+                 setRateLimitLogs(prev => [...prev, log]);
+                 continue;
+              }
               if (data.text) {
                 fullText += data.text;
                 
@@ -93,6 +104,7 @@ export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMa
                    if (closeIdx !== -1) {
                       isHistoryClosed = true;
                       setIsActionHistoryOpen(false);
+                      setActionHistoryTimeMs(performance.now() - startTime);
                       const startIdx = fullText.indexOf('<action_history>');
                       if (startIdx !== -1) {
                          setActionHistory(fullText.substring(startIdx + 16, closeIdx).trim());
@@ -116,17 +128,27 @@ export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMa
                    }
                 }
               }
-            } catch (e) {
-               // Only ignore JSON parse error
+            } catch (e: any) {
+               if (e instanceof SyntaxError) {
+                 // ignore incomplete chunk
+               } else {
+                 throw e;
+               }
             }
           }
           nextNewline = buffer.indexOf('\n\n');
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
       setIsExtracting(false);
-      setExtractedText(prev => prev + '\n\n**Lỗi trong quá trình trích xuất.**');
+      const isLimitError = e.message?.includes("hạn mức");
+      if (isLimitError) {
+         setRateLimitLogs(prev => [...prev, `[Lỗi Nghiêm Trọng] ${e.message}`]);
+         setIsActionHistoryOpen(true);
+      } else {
+         setExtractedText(prev => prev + `\n\n**Lỗi trong quá trình trích xuất.**\n${e.message || ''}`);
+      }
     }
   };
 
@@ -216,32 +238,42 @@ export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMa
                 <Sparkles size={180} />
               </div>
               
-              {(actionHistory || (isExtracting && isActionHistoryOpen)) && (
+              {(actionHistory || (isExtracting && isActionHistoryOpen) || rateLimitLogs.length > 0) && (
                 <div className="border-b border-outline-variant bg-surface-container-lowest z-20">
                   <button 
                     onClick={() => setIsActionHistoryOpen(!isActionHistoryOpen)}
                     className="w-full flex items-center justify-between p-3 text-sm font-medium text-on-surface-variant hover:bg-surface-container-low transition-colors"
                   >
                     <div className="flex items-center gap-2">
-                      <History size={16} />
-                      <span>Tiến trình xử lý (Action History)</span>
+                       <History size={16} />
+                       <span>Tiến trình xử lý (Action History)</span>
+                       {rateLimitLogs.length > 0 && <span className="text-xs text-warning ml-2 font-bold">(Rate Limited)</span>}
+                       {actionHistoryTimeMs && <span className="text-xs opacity-70">({(actionHistoryTimeMs / 1000).toFixed(1)}s)</span>}
                     </div>
                     {isActionHistoryOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                   </button>
-                  {isActionHistoryOpen && actionHistory && (
-                    <div className="p-4 text-xs font-mono text-on-surface-variant bg-surface-container-lowest whitespace-pre-wrap border-t border-outline-variant/50 max-h-48 overflow-y-auto custom-scrollbar">
-                      {actionHistory}
+                  {isActionHistoryOpen && (rateLimitLogs.length > 0 || actionHistory) && (
+                    <div className="p-4 text-xs font-mono text-on-surface-variant bg-surface-container-lowest whitespace-pre-wrap border-t border-outline-variant/50 max-h-48 overflow-y-auto custom-scrollbar flex flex-col gap-2">
+                      {rateLimitLogs.map((log, i) => (
+                         <div key={i} className="text-warning font-semibold">{log}</div>
+                      ))}
+                      {actionHistory && <div>{actionHistory}</div>}
                     </div>
                   )}
-                  {isActionHistoryOpen && isExtracting && !actionHistory && (
+                  {isActionHistoryOpen && isExtracting && !actionHistory && rateLimitLogs.length === 0 && (
                     <div className="p-4 text-xs font-mono text-on-surface-variant flex items-center gap-2 bg-surface-container-lowest border-t border-outline-variant/50">
                       <Loader2 size={12} className="animate-spin" /> Đang khởi tạo...
+                    </div>
+                  )}
+                  {isActionHistoryOpen && isExtracting && rateLimitLogs.length > 0 && !actionHistory && (
+                    <div className="p-4 text-xs font-mono text-on-surface-variant flex items-center gap-2 bg-surface-container-lowest border-t border-outline-variant/50">
+                      <Loader2 size={12} className="animate-spin text-warning" /> Đang đợi Gemini API sẵn sàng...
                     </div>
                   )}
                 </div>
               )}
               
-              {!isExtracting && !extractedText && !actionHistory && (
+              {!isExtracting && !extractedText && !actionHistory && rateLimitLogs.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center text-on-surface-variant relative z-10 opacity-60 p-6">
                   <Sparkles size={48} className="mb-4 text-outline-variant" />
                   <p className="text-sm font-medium">AI sẽ phân tích và hiển thị kết quả tại đây.</p>

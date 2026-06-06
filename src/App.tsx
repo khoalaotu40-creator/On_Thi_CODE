@@ -58,7 +58,7 @@ export default function App() {
     const q = questions.find(q => q.id === questionId);
     if (!q) return;
 
-    setQuestions(prev => prev.map(q => q.id === questionId ? { ...q, isGeneratingSolution: true, solutionStepByStep: '' } : q));
+    setQuestions(prev => prev.map(q => q.id === questionId ? { ...q, isGeneratingSolution: true, solutionStepByStep: '', rateLimitLogs: [] } : q));
 
     try {
       const response = await fetch('/api/solve', {
@@ -82,9 +82,14 @@ export default function App() {
       let buffer = '';
       let fullText = '';
       let isHistoryClosed = false;
+      const startTime = performance.now();
 
       // Ensure init open
-      setQuestions(prev => prev.map(q => q.id === questionId ? { ...q, isSolutionActionHistoryOpen: true } : q));
+      setQuestions(prev => prev.map(q => q.id === questionId ? { 
+        ...q, 
+        isSolutionActionHistoryOpen: true,
+        solutionActionHistoryTimeMs: undefined 
+      } : q));
 
       while (true) {
         const { value, done } = await reader.read();
@@ -117,6 +122,17 @@ export default function App() {
               if (data.error) {
                  throw new Error(data.error);
               }
+              if (data.rateLimit) {
+                 setQuestions(prev => prev.map(question => {
+                    if (question.id !== questionId) return question;
+                    const log = `[Rate Limit 429] Quá hạn mức. Đang đợi thử lại (Lần ${data.rateLimit.attempt}/${data.rateLimit.maxRetries}). Đợi thêm ${Math.round(data.rateLimit.delayMs / 1000)} giây...`;
+                    return {
+                      ...question,
+                      rateLimitLogs: [...(question.rateLimitLogs || []), log]
+                    };
+                 }));
+                 continue;
+              }
               if (data.text) {
                 fullText += data.text;
                 setQuestions(prev => prev.map(question => {
@@ -125,12 +141,14 @@ export default function App() {
                   let newActionHistory = question.solutionActionHistory || '';
                   let newExtracted = question.solutionStepByStep || '';
                   let openState = question.isSolutionActionHistoryOpen ?? true;
+                  let timeMs = question.solutionActionHistoryTimeMs;
                   
                   if (!isHistoryClosed) {
                     const closeIdx = fullText.indexOf('</action_history>');
                     if (closeIdx !== -1) {
                       isHistoryClosed = true;
                       openState = false;
+                      timeMs = performance.now() - startTime;
                       const startIdx = fullText.indexOf('<action_history>');
                       if (startIdx !== -1) {
                         newActionHistory = fullText.substring(startIdx + 16, closeIdx).trim();
@@ -157,12 +175,17 @@ export default function App() {
                     ...question,
                     solutionActionHistory: newActionHistory,
                     solutionStepByStep: newExtracted,
-                    isSolutionActionHistoryOpen: openState
+                    isSolutionActionHistoryOpen: openState,
+                    solutionActionHistoryTimeMs: timeMs
                   };
                 }));
               }
-            } catch (e) {
-               // ignore
+            } catch (e: any) {
+               if (e instanceof SyntaxError) {
+                 // ignore incomplete chunk
+               } else {
+                 throw e;
+               }
             }
           }
           nextNewline = buffer.indexOf('\n\n');
@@ -170,7 +193,17 @@ export default function App() {
       }
     } catch (e: any) {
       console.error(e);
-      setQuestions(prev => prev.map(q => q.id === questionId ? { ...q, isGeneratingSolution: false, solutionStepByStep: `Lỗi khi gọi API: ${e.message || 'Lỗi không xác định'}` } : q));
+      setQuestions(prev => prev.map(q => {
+        if (q.id !== questionId) return q;
+        const isLimitError = e.message?.includes("hạn mức");
+        return {
+          ...q,
+          isGeneratingSolution: false,
+          solutionStepByStep: isLimitError ? q.solutionStepByStep : `Lỗi khi gọi API: ${e.message || 'Lỗi không xác định'}`,
+          rateLimitLogs: isLimitError ? [...(q.rateLimitLogs || []), `[Lỗi Nghiêm Trọng] ${e.message}`] : q.rateLimitLogs,
+          isSolutionActionHistoryOpen: isLimitError ? true : q.isSolutionActionHistoryOpen
+        };
+      }));
     }
   };
 

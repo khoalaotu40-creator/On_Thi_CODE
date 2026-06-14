@@ -11,9 +11,11 @@ interface BatchOperationsProps {
   onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onGenerateAll: () => void;
   onSubmitMarkdown: (text: string) => void;
+  aiProvider: string;
+  aiModelId: string;
 }
 
-export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMarkdown }: BatchOperationsProps) {
+export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMarkdown, aiProvider, aiModelId }: BatchOperationsProps) {
   const [markdownInput, setMarkdownInput] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractedText, setExtractedText] = useState('');
@@ -50,7 +52,11 @@ export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMa
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream'
         },
-        body: JSON.stringify({ content: markdownInput }),
+        body: JSON.stringify({ 
+          content: markdownInput,
+          provider: aiProvider,
+          modelId: aiModelId
+        }),
       });
 
       if (!response.ok) {
@@ -89,7 +95,10 @@ export function BatchOperations({ questions, onUpload, onGenerateAll, onSubmitMa
             try {
               const data = JSON.parse(dataStr);
               if (data.error) {
-                 throw new Error(data.error);
+                 setExtractedText(prev => prev + `\n\n**Lỗi:** ${data.error}`);
+                 setIsExtracting(false);
+                 setExtractionComplete(true);
+                 break;
               }
               if (data.rateLimit) {
                  const log = `[Rate Limit 429] Quá hạn mức. Đang đợi thử lại (Lần ${data.rateLimit.attempt}/${data.rateLimit.maxRetries}). Đợi thêm ${Math.round(data.rateLimit.delayMs / 1000)} giây...`;

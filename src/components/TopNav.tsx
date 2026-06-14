@@ -6,9 +6,10 @@ interface TopNavProps {
   onTabChange: (tab: 'editor' | 'batch') => void;
   currentUser: string | null;
   onLogout: () => void;
+  onOpenSettings: () => void;
 }
 
-export function TopNav({ activeTab, onTabChange, currentUser, onLogout }: TopNavProps) {
+export function TopNav({ activeTab, onTabChange, currentUser, onLogout, onOpenSettings }: TopNavProps) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -66,7 +67,13 @@ export function TopNav({ activeTab, onTabChange, currentUser, onLogout }: TopNav
                   <Info size={16} className="text-on-surface-variant" />
                   Thông tin cá nhân
                 </button>
-                <button className="w-full text-left px-4 py-2 text-sm text-on-surface hover:bg-surface-container flex items-center gap-2 transition-colors">
+                <button 
+                  onClick={() => {
+                    setIsProfileMenuOpen(false);
+                    onOpenSettings();
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-on-surface hover:bg-surface-container flex items-center gap-2 transition-colors"
+                >
                   <Settings size={16} className="text-on-surface-variant" />
                   Cài đặt
                 </button>

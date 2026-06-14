@@ -9,6 +9,7 @@ import { Sidebar } from './components/Sidebar';
 import { MainContent } from './components/MainContent';
 import { BatchOperations } from './components/BatchOperations';
 import { Auth } from './components/Auth';
+import { SettingsModal } from './components/SettingsModal';
 import { mockQuestions } from './data';
 import { parseMarkdownToQuestions } from './utils/textSplitter';
 import { Question } from './types';
@@ -19,7 +20,19 @@ export default function App() {
   const [questions, setQuestions] = useState<Question[]>(mockQuestions);
   const [activeQuestionId, setActiveQuestionId] = useState<string>(mockQuestions[0]?.id || '');
   
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [aiProvider, setAiProvider] = useState<string>(localStorage.getItem('aiProvider') || 'gemini');
+  const [aiModelId, setAiModelId] = useState<string>(localStorage.getItem('aiModelId') || 'google/gemini-2.5-flash');
+
   const activeQuestion = questions.find(q => q.id === activeQuestionId);
+
+  const saveSettings = (provider: string, modelId: string) => {
+    localStorage.setItem('aiProvider', provider);
+    localStorage.setItem('aiModelId', modelId);
+    setAiProvider(provider);
+    setAiModelId(modelId);
+    setIsSettingsOpen(false);
+  };
 
   const handleLogin = (username: string) => {
     localStorage.setItem('currentUser', username);
@@ -84,7 +97,11 @@ export default function App() {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream'
         },
-        body: JSON.stringify({ content: q.content }),
+        body: JSON.stringify({ 
+          content: q.content,
+          provider: aiProvider,
+          modelId: aiModelId
+        }),
       });
 
       if (!response.ok) {
@@ -137,7 +154,15 @@ export default function App() {
             try {
               const data = JSON.parse(dataStr);
               if (data.error) {
-                 throw new Error(data.error);
+                 setQuestions(prev => prev.map(question => {
+                    if (question.id !== questionId) return question;
+                    return {
+                      ...question,
+                      isGeneratingSolution: false,
+                      solutionStepByStep: (question.solutionStepByStep || '') + `\n\n**Lỗi:** ${data.error}`
+                    };
+                 }));
+                 break;
               }
               if (data.rateLimit) {
                  setQuestions(prev => prev.map(question => {
@@ -231,6 +256,7 @@ export default function App() {
         onTabChange={setActiveTab} 
         currentUser={currentUser}
         onLogout={handleLogout}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
       <div className="flex flex-1 overflow-hidden max-w-[1280px] w-full mx-auto border-x border-outline-variant shadow-sm">
         {activeTab === 'editor' ? (
@@ -265,9 +291,19 @@ export default function App() {
             onUpload={handleFileUpload} 
             onGenerateAll={() => {}}
             onSubmitMarkdown={handleMarkdownSubmit}
+            aiProvider={aiProvider}
+            aiModelId={aiModelId}
           />
         )}
       </div>
+
+      <SettingsModal 
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSave={saveSettings}
+        initialProvider={aiProvider}
+        initialModelId={aiModelId}
+      />
     </div>
   );
 }
